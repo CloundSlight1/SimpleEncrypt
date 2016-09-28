@@ -16,39 +16,33 @@ public class Main {
     private static final byte[] KEY = "eFDe&9(feFDe&9(f".getBytes();
 
     public static void main(String[] args) {
-        if (args == null || args.length != 2 ||
-                (!args[1].equals("e") && !args[1].equals("d"))) {
-            System.err.println("Error! usage: java SimpleEncrypt file e[encrypt]|d[decrypt]");
+        if (args == null || args.length != 3 ||
+                (!args[0].equals("e") && !args[0].equals("d"))) {
+            System.err.println("Error! usage: java SimpleEncrypt e[encrypt]|d[decrypt] src dest");
             return;
         }
 
-        File file = new File(args[0]);
+        if (args[1].equals(args[2])) {
+            System.err.println("src cannot be same as dest");
+            return;
+        }
+        
+        File file = new File(args[1]);
         if (!file.exists() || !file.isFile()) {
             System.err.println("file not exist");
             return;
         }
 
-        boolean encrypt = args[1].equals("e");
-        if (encrypt) {
-            String content = encrypt(file);
-            if (content == null || content.isEmpty())
-                return;
-            try (FileWriter writer = new FileWriter(file)){
-                writer.write(content);
-                writer.close();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        } else {
-            byte[] buffer = decrypt(file);
-            if (buffer == null || buffer.length == 0)
-                return;
-            try (FileWriter writer = new FileWriter(file)){
-                writer.write(new String(buffer));
-                writer.close();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+        boolean encrypt = args[0].equals("e");
+        Cipher cipher = getCipher(KEY, "AES", encrypt);
+        if (cipher == null)
+            return;
+
+        try (FileInputStream inputStream = new FileInputStream(args[1]);
+             FileOutputStream outputStream = new FileOutputStream(args[2])) {
+            crypt(inputStream, outputStream, cipher);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         System.out.println("done!");
     }
@@ -56,7 +50,7 @@ public class Main {
     private static Cipher getCipher(byte[] key, String algorithm, boolean isEncrypt) {
         try {
             SecretKeySpec keySpec = new SecretKeySpec(key, algorithm);
-            Cipher cipher = Cipher.getInstance("AES");
+            Cipher cipher = Cipher.getInstance(algorithm);
             SecureRandom random = new SecureRandom();
             cipher.init(isEncrypt ? Cipher.ENCRYPT_MODE : Cipher.DECRYPT_MODE, keySpec, random);
             return cipher;
@@ -66,50 +60,28 @@ public class Main {
         return null;
     }
 
-    private static String encrypt(File file) {
-        if (file == null || !file.exists() || !file.isFile())
-            return null;
-        Cipher cipher = getCipher(KEY, "AES", true);
-        if (cipher == null)
-            return null;
-
-        try (FileInputStream inputStream = new FileInputStream(file)){
-            byte[] buffer = new byte[1024];
-            int n;
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream(buffer.length);
-            while ((n = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, n);
+    private static void crypt(InputStream inputStream, OutputStream outputStream, Cipher cipher) throws Exception {
+        int blockSize = cipher.getBlockSize();
+        int outSize = cipher.getOutputSize(blockSize);
+//        System.out.println("blockSize " + blockSize + ", outSize " + outSize);
+        byte[] inBytes = new byte[blockSize];
+        byte[] outBytes = new byte[outSize];
+        while (true) {
+            int n = inputStream.read(inBytes);
+            if (n == blockSize) {
+                int m = cipher.update(inBytes, 0, n, outBytes);
+//                System.out.println("update " + m);
+                outputStream.write(outBytes, 0, m);
+                continue;
             }
-            inputStream.close();
-            outputStream.close();
-            buffer = outputStream.toByteArray();
-            buffer = cipher.doFinal(buffer);
-            if (buffer != null && buffer.length > 0) {
-                return new BASE64Encoder().encode(buffer);
+            if (n > 0) {
+                outBytes = cipher.doFinal(inBytes, 0, n);
+            } else {
+                outBytes = cipher.doFinal();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+//            System.out.println("doFinal " + outBytes.length);
+            outputStream.write(outBytes);
+            break;
         }
-        return null;
-    }
-
-    private static byte[] decrypt(File file) {
-        if (file == null || !file.exists() || !file.isFile())
-            return null;
-        Cipher cipher = getCipher(KEY, "AES", false);
-        if (cipher == null)
-            return null;
-
-        try (FileInputStream inputStream = new FileInputStream(file)){
-            byte[] buffer = new BASE64Decoder().decodeBuffer(inputStream);
-            inputStream.close();
-            if (buffer == null || buffer.length == 0)
-                return null;
-
-            return cipher.doFinal(buffer);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
     }
 }
