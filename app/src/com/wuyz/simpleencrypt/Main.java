@@ -1,8 +1,5 @@
 package com.wuyz.simpleencrypt;
 
-import sun.misc.BASE64Decoder;
-import sun.misc.BASE64Encoder;
-
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
@@ -10,36 +7,44 @@ import java.security.SecureRandom;
 
 /**
  * Created by wuyz on 9/14/2016.
- *
+ * main
  */
 public class Main {
-    private static final byte[] KEY = "eFDe&9(feFDe&9(f".getBytes();
 
     public static void main(String[] args) {
-        if (args == null || args.length != 3 ||
-                (!args[0].equals("e") && !args[0].equals("d"))) {
-            System.err.println("Error! usage: java SimpleEncrypt e[encrypt]|d[decrypt] src dest");
+        if (args == null || args.length != 4) {
+            System.err.println("argument num error! usage: java SimpleEncrypt key e[encrypt]|d[decrypt] src dest");
             return;
         }
 
-        if (args[1].equals(args[2])) {
+        final String key = args[0];
+        final String type = args[1];
+        final String src = args[2];
+        final String dest = args[3];
+
+        if (!type.equals("e") && !type.equals("d")) {
+            System.err.println("type error! usage: java SimpleEncrypt key e[encrypt]|d[decrypt] src dest");
+            return;
+        }
+
+        if (src.equals(dest)) {
             System.err.println("src cannot be same as dest");
             return;
         }
-        
-        File file = new File(args[1]);
+
+        File file = new File(src);
         if (!file.exists() || !file.isFile()) {
             System.err.println("file not exist");
             return;
         }
 
-        boolean encrypt = args[0].equals("e");
-        Cipher cipher = getCipher(KEY, "AES", encrypt);
+        boolean encrypt = type.equals("e");
+        Cipher cipher = getCipher(key.getBytes(), "AES", encrypt);
         if (cipher == null)
             return;
 
-        try (FileInputStream inputStream = new FileInputStream(args[1]);
-             FileOutputStream outputStream = new FileOutputStream(args[2])) {
+        try (FileInputStream inputStream = new FileInputStream(src);
+             FileOutputStream outputStream = new FileOutputStream(dest)) {
             crypt(inputStream, outputStream, cipher);
         } catch (Exception e) {
             e.printStackTrace();
